@@ -23,11 +23,11 @@ public class TestHttpClientAysncApache {
             httpclient.start();
 
             // Execute request
-            final HttpGet request1 = new HttpGet("http://www.apache.org/");
-            Future<HttpResponse> future = httpclient.execute(request1, null);
-            // and wait until a response is received
-            HttpResponse response1 = future.get();
-            System.out.println(request1.getRequestLine() + "->" + response1.getStatusLine());
+//            final HttpGet request1 = new HttpGet("http://www.apache.org/");
+//            Future<HttpResponse> future = httpclient.execute(request1, null);
+//            // and wait until a response is received
+//            HttpResponse response1 = future.get();
+//            System.out.println(request1.getRequestLine() + "->" + response1.getStatusLine());
 
             // One most likely would want to use a callback for operation result
             final CountDownLatch latch1 = new CountDownLatch(1);

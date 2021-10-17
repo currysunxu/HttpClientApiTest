@@ -1,11 +1,16 @@
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
@@ -22,10 +27,13 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 public class TestHttpClientAysnc {
-    public static void main(String[] args) throws IOException, URISyntaxException {
+    public static void main(String[] args) throws IOException, URISyntaxException, ExecutionException, InterruptedException {
 
         RequestConfig requestConfig = RequestConfig.custom()
                 .setConnectTimeout(50000)
@@ -47,7 +55,7 @@ public class TestHttpClientAysnc {
         }
         PoolingNHttpClientConnectionManager connManager = new PoolingNHttpClientConnectionManager(ioReactor);
         connManager.setMaxTotal(1000);
-        connManager.setDefaultMaxPerRoute(10);
+        connManager.setDefaultMaxPerRoute(200);
 
 
         final CloseableHttpAsyncClient client = HttpAsyncClients.custom().
@@ -55,11 +63,8 @@ public class TestHttpClientAysnc {
                 .setDefaultRequestConfig(requestConfig)
                 .build();
 
-
-        //构造请求
-//        String url = "http://127.0.0.1:9200/_bulk";
-//        HttpPost httpPost = new HttpPost(url);
-//        StringEntity entity = null;
+        CloseableHttpClient httpclient = HttpClients.createDefault();
+        CloseableHttpResponse response = null;
 
         for (int i = 0; i < 1000; i++) {
             List<NameValuePair> nameValuePairs = new ArrayList();
@@ -68,54 +73,46 @@ public class TestHttpClientAysnc {
             URI uri = new URIBuilder("https://qyapi.weixin.qq.com/cgi-bin/gettoken").setParameters(nameValuePairs).build();
             // 创建http GET请求
             HttpGet httpGet = new HttpGet(uri);
-//        try {
-//            String a = "{ \"index\": { \"_index\": \"test\", \"_type\": \"test\"} }\n" +
-//                    "{\"name\": \"上海\",\"age\":33}\n";
-//            entity = new StringEntity(a);
-//        } catch (UnsupportedEncodingException e) {
-//            e.printStackTrace();
-//        }
-//        httpPost.setEntity(entity);
+            //同步请求,获取access-token
+            response = httpclient.execute(httpGet);
+            String jsonObject = EntityUtils.toString(response.getEntity());
+            //Deserialization json
+            ObjectMapper objectMapper = new ObjectMapper();
+            //json to map
+            Map<String,String> result = objectMapper.readValue(jsonObject, new TypeReference<Map<String,String>>() { });
 
-            //start
-
+            //start 异步请求,用之前api的access-token
             client.start();
 
-            //异步请求
-            client.execute(httpGet, new Back());
-
+            URI uri2 = new URIBuilder("https://qyapi.weixin.qq.com/cgi-bin/getcallbackip").setParameter("access_token",result.get("access_token")).build();
+            // 创建最终 http GET请求
+            HttpGet httpGet2 = new HttpGet(uri2);
+            client.execute(httpGet2, new Back());
         }
-//
-//        while(true){
-//            try {
-//                TimeUnit.SECONDS.sleep(1);
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
-//        }
+
 
     }
 
     static class Back implements FutureCallback<HttpResponse> {
 
         private long start = System.currentTimeMillis();
-        Back(){
+
+        Back() {
         }
 
         public void completed(HttpResponse httpResponse) {
             try {
-                System.out.println("cost completed is:"+(System.currentTimeMillis()-start)+":"+ EntityUtils.toString(httpResponse.getEntity()));
+                System.out.println("cost completed is:" + (System.currentTimeMillis() - start) + ":" + EntityUtils.toString(httpResponse.getEntity()));
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
 
         public void failed(Exception e) {
-            System.err.println(" cost is:"+(System.currentTimeMillis()-start)+":"+e);
+            System.err.println(" cost is:" + (System.currentTimeMillis() - start) + ":" + e);
         }
 
         public void cancelled() {
-
         }
     }
 }
